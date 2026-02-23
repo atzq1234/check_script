@@ -123,7 +123,7 @@ fi
     else
         grep -i "pam_pwquality\.so" $config > /dev/null
         if [ $? == 0 ];then
-            sed -i "s/password.*requisite.*pam_pwquality\.so.*$/password     requisite       pam_pwquality.so retry=3 difok=3 minlen=12 ucredit=-1 lcredit=-1 dcredit=-1 ocredit=-1/g" $config
+            sed -i "s/^password.*pam_pwquality\.so.*$/password     requisite       pam_pwquality.so retry=3 difok=3 minlen=12 ucredit=-1 lcredit=-1 dcredit=-1 ocredit=-1/g" $config
 	    echo -e "\033[1;31m密码修改重试3次机会，新密码与老密码必须有3字符不同，最小密码长度12个字符，包含大写字符至少一个，小写字母至少一个，数字至少一个，特殊字符至少一个\033[0m"
         else
             echo 'password      requisite       pam_cracklib.so retry=3 difok=3 minlen=12 ucredit=-1 lcredit=-1 dcredit=-1 ocredit=-1' >> $config
@@ -287,7 +287,7 @@ function ssh_port(){
         read -p 'please input the new ssh port(recommend to between 1024 and 65534, please make sure the port is not in used):' port
 	##验证端口是否被占用
 	if [[ $port -gt 1024 && $port -lt 65535 ]];then
-          netstat -tlnp|awk -v port=$port '{lens=split($4,a,":");if(a[lens]==port){exit 2}}'  >/dev/null #2>&1
+          ss -tlnp|awk -v port=$port '{lens=split($5,a,":");if(a[lens]==port){exit 2}}'  >/dev/null #2>&1
           res=$?
 	    if [ $res == 2 ];then
               echo -e "\033[1;31m	    The port $port is already in used, try again	\033[0m"
@@ -334,12 +334,18 @@ logonconfig=/etc/pam.d/sshd
     read -p 'Are you sure set logon failure handling?[y/n]:'
     case $REPLY in
     y)
-	grep -i "^auth.*required.*pam_tally2.so.*$" $logonconfig  > /dev/null
+	# 检查是否已使用pam_faillock.so
+	grep -i "pam_faillock.so" $logonconfig  > /dev/null
 	if [ $? == 0 ];then
-	   sed -i "s/auth.*required.*pam_tally2.so.*$/auth required pam_tally2.so deny=3 unlock_time=300 even_deny_root root_unlock_time=300/g" $logonconfig > /dev/null
-        else
-	   sed -i '/^#%PAM-1.0/a\auth required pam_tally2.so deny=3 unlock_time=300 even_deny_root root_unlock_time=300' $logonconfig > /dev/null
-        fi
+	    # 已使用pam_faillock.so，更新配置
+	    sed -i "s/auth.*pam_faillock.so.*preauth.*/auth required pam_faillock.so preauth silent audit deny=3 unlock_time=300 even_deny_root/g" $logonconfig > /dev/null
+	    sed -i "s/auth.*pam_faillock.so.*authfail.*/auth [default=die] pam_faillock.so authfail audit deny=3 unlock_time=300 even_deny_root/g" $logonconfig > /dev/null
+	else
+	    # 未使用pam_faillock.so，添加配置
+	    sed -i '/^#%PAM-1.0/a\auth required pam_faillock.so preauth silent audit deny=3 unlock_time=300 even_deny_root' $logonconfig > /dev/null
+	    sed -i '/auth required pam_faillock.so preauth/a\auth [default=die] pam_faillock.so authfail audit deny=3 unlock_time=300 even_deny_root' $logonconfig > /dev/null
+	    sed -i '/account required pam_nologin.so/a\account required pam_faillock.so' $logonconfig > /dev/null
+	fi
     
 	if [ $? == 0 ];then
 	    echo "#########################################################################################"

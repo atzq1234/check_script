@@ -22,7 +22,7 @@ echo " "
 echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>系统基本信息<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
 hostname=$(uname -n)
 system=$(cat /etc/os-release | grep "^NAME" | awk -F\" '{print $2}')
-version=$(cat /etc/redhat-release | awk '{print $4$5}')
+version=$(cat /etc/os-release | grep "VERSION_ID" | awk -F"=" '{print $2}' | sed 's/"//g')
 kernel=$(uname -r)
 platform=$(uname -p)
 address=$(ip addr | grep inet | grep -v "inet6" | grep -v "127.0.0.1" | awk '{ print $2; }' | tr '\n' '\t' )
@@ -139,10 +139,10 @@ echo "正常情况下登录到本机30天内的所有用户的历史记录:"
 last | head -n 30
 echo "=============================dividing line================================"
 echo "查看syslog日志审计服务是否开启:"
-if service rsyslog status | egrep " active \(running";then
+if systemctl status rsyslog | egrep " active \(running";then
   echo ">>>经分析,syslog服务已开启"
 else
-  echo ">>>经分析,syslog服务未开启，建议通过service rsyslog start开启日志审计功能---------[需调整]"
+  echo ">>>经分析,syslog服务未开启，建议通过systemctl start rsyslog开启日志审计功能---------[需调整]"
 fi
 echo "=============================dividing line================================"
 echo "查看syslog日志是否开启外发:"
@@ -257,7 +257,7 @@ else
 fi
 echo "=============================dividing line================================"
 echo  "查看是否开启了ssh服务:"
-if service sshd status | grep -E "listening on|active \(running\)"; then
+if systemctl status sshd | grep -E "listening on|active \(running\)"; then
   echo ">>>SSH服务已开启"
 else
   echo ">>>SSH服务未开启--------[需调整]"
